@@ -1,0 +1,59 @@
+package terraform.security
+import input as tfplan
+
+########################
+# Parameters for Policy
+########################
+
+forbidden_cidrs = ["0.0.0.0/0"]
+forbidden_ports = ["22", "3389"]
+forbidden_protocols = ["ssh", "rdp"]
+
+#########
+# Policy
+#########
+
+# sg_rule_check {
+#   security_rules[_].values.cidr_blocks[_] != forbid_cidrs[_]
+# }
+
+####################
+# Terraform Library
+####################
+
+# security group ingress not allow remote ports
+violation_security_group_ingress_port[reason] {
+    r := tfplan.resource_changes[_]
+    r.mode == "managed"
+    r.type == "aws_security_group_rule"
+    r.change.after.type == "ingress"
+
+	not array_contains(r.change.after.from_port, forbidden_ports)
+	not array_contains(r.change.after.to_port, forbidden_ports)
+
+    reason := sprintf(
+      "%-40s :: ingress port '%d' is not allowed",
+      [r.address, r.change.after.from_port]
+    )
+}
+
+# security group ingress not allow protocols
+violation_security_group_ingress_protocols[reason] {
+    r := tfplan.resource_changes[_]
+    r.mode == "managed"
+    r.type == "aws_security_group_rule"
+    r.change.after.type == "ingress"
+
+	not array_contains(r.change.after.protocol, forbidden_protocols)
+
+    reason := sprintf(
+      "%-40s :: ingress protocol '%s' is not allowed",
+      [r.address, r.change.after.protocol]
+    )
+}
+
+
+# support functions
+array_contains(arr, elem) {
+  arr[_] == elem
+}
